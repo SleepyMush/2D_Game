@@ -39,14 +39,47 @@ public:
 };
 Player player;
 
-struct Enemy {
+enum class Enemybehavior
+{
+	ENEMY_IDLE,
+	ENEMY_RUSH
+};
+
+class Enemy
+{
+public:
 	Enemy() = default;
 	Transform transform;
+	Enemybehavior enemybehavior;
+
+	void handleEnemyLogic()
+	{
+		float rushSpeed = 0.10f;
+
+		switch (enemybehavior)
+		{
+		case Enemybehavior::ENEMY_IDLE:
+			transform.position.x = RandomFloat(-10, 10);
+			transform.position.y = RandomFloat(-10, 10);
+			break;
+		case Enemybehavior::ENEMY_RUSH:
+			glm::vec3 direction = glm::normalize(player.transform.position - transform.position);
+			transform.position += direction * rushSpeed * deltaTime;
+			break;
+		default:
+			std::cout << "Enemy behavior is undifined";
+			break;
+		}
+	}
+
+	void setBehavior(Enemybehavior behavior) {
+		enemybehavior = behavior;
+	}
 };
 
 int main() 
 {
-	window.CreateWindow(windset.width = 1920, windset.height = 1080, "Wave shooter");
+	window.CreateWindow(windset.width = 1920, windset.height = 1080, "Space Wave");
 	shader.Load("vertexShader.vert","FragmentShader.frag");
 
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
@@ -80,19 +113,17 @@ int main()
 	int nbFrames = 0;
 
 	std::vector<Enemy> enemies(10);
-	for (Enemy& enemy : enemies) {
-		enemy.transform.position.x = RandomFloat(-10, 10);
-		enemy.transform.position.y = RandomFloat(-10, 10);
+	std::vector<glm::mat4> enemyTransforms(enemies.size());
+	for (auto& enemy : enemies)
+	{
+		enemy.setBehavior(Enemybehavior::ENEMY_IDLE);
+		enemy.handleEnemyLogic();
 	}
+
 	GLsizeiptr bufferSize = enemies.size() * sizeof(glm::mat4);
 	ssbo.SSBObuffer(bufferSize, 0);
 
-	std::vector<glm::mat4> enemyTransforms(enemies.size());
-	for (size_t i = 0; i < enemies.size(); ++i) {
-	enemyTransforms[i] = enemies[i].transform.to_mat4();
-	}
-
-	glm::vec3 color = glm::vec3(1.0f, 1.0f, 0.0f);
+	glm::vec3 color = glm::vec3(1.0f, 0.0f, 1.0f);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -111,7 +142,7 @@ int main()
 			lastTime = currentTime;
 		}
 
-		float currentFrame = glfwGetTime();
+		double currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
@@ -122,6 +153,16 @@ int main()
 		glm::mat4 projectionmatrix = camera.ReturnProjection(windset.width, windset.height);
 		glm::mat4 viewmatrix = camera.ReturnView();
 		camera.Updatecamera(player.transform.position);
+
+		for (auto& enemy : enemies)
+		{
+			for (size_t i = 0; i < enemies.size(); ++i) {
+				enemy.setBehavior(Enemybehavior::ENEMY_RUSH);
+				enemy.handleEnemyLogic();
+
+				enemyTransforms[i] = enemies[i].transform.to_mat4();
+			}
+		}
 
 		ssbo.updateSSBO(bufferSize, enemyTransforms.data(),0);
 
